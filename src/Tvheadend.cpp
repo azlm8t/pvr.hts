@@ -1344,15 +1344,23 @@ void CTvheadend::CreateEvent
   epg.strPlotOutline      = event.GetSummary().c_str();
   epg.strPlot             = event.GetDesc().c_str();
   epg.strOriginalTitle    = NULL; /* not supported by tvh */
-  epg.strCast             = NULL; /* not supported by tvh */
-  epg.strDirector         = NULL; /* not supported by tvh */
-  epg.strWriter           = NULL; /* not supported by tvh */
-  epg.iYear               = 0;    /* not supported by tvh */
+  epg.strCast             = event.GetActors().c_str();
+  epg.strDirector         = event.GetDirectors().c_str();
+  epg.strWriter           = event.GetWriters().c_str();
+  epg.iYear               = event.GetYear();
   epg.strIMDBNumber       = NULL; /* not supported by tvh */
   epg.strIconPath         = event.GetImage().c_str();
   epg.iGenreType          = event.GetGenreType();
   epg.iGenreSubType       = event.GetGenreSubType();
-  epg.strGenreDescription = NULL; /* not supported by tvh */
+  if (epg.iGenreType == 0)
+  {
+    const std::string& categories = event.GetCategories();
+    if (!categories.empty())
+    {
+      epg.iGenreType = EPG_GENRE_USE_STRING;
+      epg.strGenreDescription = categories.c_str();
+    }
+  }
   epg.firstAired          = event.GetAired();
   epg.iParentalRating     = event.GetAge();
   epg.iStarRating         = event.GetStars();
@@ -2449,11 +2457,52 @@ bool CTvheadend::ParseEvent ( htsmsg_t *msg, bool bAdd, Event &evt )
     evt.SetPart(u32);
   if ((str = htsmsg_get_str(msg, "serieslinkUri")) != NULL)
     evt.SetSeriesLink(str);
-
-  /* Add optional recording link */
+  if (!htsmsg_get_u32(msg, "copyrightYear", &u32))
+    evt.SetYear(u32);
   if (!htsmsg_get_u32(msg, "dvrId", &u32))
     evt.SetRecordingId(u32);
   
+  htsmsg_t *l;
+  if ((l = htsmsg_get_list(msg, "credits")) != nullptr)
+  {
+    std::vector<std::string> writers;
+    std::vector<std::string> directors;
+    std::vector<std::string> actors;
+
+    htsmsg_field_t *f;
+    HTSMSG_FOREACH(f, l)
+    {
+      const char *str;
+      if ((str = htsmsg_get_str(&f->hmf_msg, "writer")) != nullptr)
+        writers.emplace_back(str);
+      else if ((str = htsmsg_get_str(&f->hmf_msg, "director")) != nullptr)
+        directors.emplace_back(str);
+      else if ((str = htsmsg_get_str(&f->hmf_msg, "actor")) != nullptr)
+        actors.emplace_back(str);
+    }
+
+    evt.SetWriters(writers);
+    evt.SetDirectors(directors);
+    evt.SetActors(actors);
+  }
+
+  if ((l = htsmsg_get_list(msg, "category")) != nullptr)
+  {
+    std::vector<std::string> categories;
+
+    htsmsg_field_t *f;
+    HTSMSG_FOREACH(f, l)
+    {
+      const char *str = f->hmf_str;
+      if (str != nullptr)
+      {
+        categories.emplace_back(str);
+      }
+    }
+
+    evt.SetCategories(categories);
+  }
+
   return true;
 }
 
