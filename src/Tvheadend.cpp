@@ -2478,7 +2478,7 @@ bool CTvheadend::ParseEvent ( htsmsg_t *msg, bool bAdd, Event &evt )
     evt.SetRecordingId(u32);
   
   htsmsg_t *l;
-  if ((l = htsmsg_get_list(msg, "credits")) != nullptr)
+  if ((l = htsmsg_get_map(msg, "credits")) != nullptr)
   {
     std::vector<std::string> writers;
     std::vector<std::string> directors;
@@ -2487,13 +2487,18 @@ bool CTvheadend::ParseEvent ( htsmsg_t *msg, bool bAdd, Event &evt )
     htsmsg_field_t *f;
     HTSMSG_FOREACH(f, l)
     {
-      const char *str;
-      if ((str = htsmsg_get_str(&f->hmf_msg, "writer")) != nullptr)
-        writers.emplace_back(str);
-      else if ((str = htsmsg_get_str(&f->hmf_msg, "director")) != nullptr)
-        directors.emplace_back(str);
-      else if ((str = htsmsg_get_str(&f->hmf_msg, "actor")) != nullptr)
-        actors.emplace_back(str);
+      if (f->hmf_name == nullptr)
+        continue;
+      const char *str = htsmsg_field_get_string(f);
+      if (str == nullptr)
+        continue;
+      const std::string role = str;
+      if (role == "writer")
+        writers.emplace_back(f->hmf_name);
+      else if (role == "director")
+        directors.emplace_back(f->hmf_name);
+      else if ((role == "actor" || role == "guest" || role == "presenter"))
+        actors.emplace_back(f->hmf_name);
     }
 
     evt.SetWriters(writers);
