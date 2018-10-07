@@ -1284,6 +1284,27 @@ PVR_ERROR CTvheadend::DeleteTimer(const PVR_TIMER &timer, bool)
   }
 }
 
+PVR_ERROR CTvheadend::MarkPrevRecordedTimer(const PVR_TIMER &timer)
+{
+  if (m_conn->GetProtocol() < 33)
+    return PVR_ERROR_NOT_IMPLEMENTED;
+
+  /* We only work for timers, not for timer rules */
+  const int type = timer.iTimerType;
+  if (type == TIMER_REPEATING_MANUAL ||
+      type == TIMER_REPEATING_EPG ||
+      type == TIMER_REPEATING_SERIESLINK)
+  {
+    return PVR_ERROR_NOT_IMPLEMENTED;
+  }
+
+  htsmsg_t *m = htsmsg_create_map();
+  htsmsg_add_u32(m, "id", timer.iClientIndex);
+  // 1 ==> previously recorded (0=>not, -1=>toggle).
+  htsmsg_add_u32(m, "prevrec", 1);
+  return SendDvrUpdate(m);
+}
+
 PVR_ERROR CTvheadend::UpdateTimer ( const PVR_TIMER &timer )
 {
   if ((timer.iTimerType == TIMER_ONCE_MANUAL) ||

@@ -47,8 +47,12 @@ ADDON_STATUS m_CurStatus = ADDON_STATUS_UNKNOWN;
 CMutex g_mutex;
 CHelper_libXBMC_addon *XBMC      = NULL;
 CHelper_libXBMC_pvr   *PVR       = NULL;
-PVR_MENUHOOK          *menuHook  = NULL;
 CTvheadend            *tvh       = NULL;
+
+typedef enum {
+  MENUHOOK_TIMER_PREV_RECORDED,
+} menu_hook_id_t;
+
 
 /* **************************************************************************
  * ADDON setup
@@ -113,6 +117,16 @@ ADDON_STATUS ADDON_Create(void* hdl, void* props)
   tvh = new CTvheadend(reinterpret_cast<PVR_PROPERTIES *>(props));
   tvh->Start();
 
+  // The menu hook _has_ to be in ADDON_Create but Tvheaend protocol
+  // isn't known until after register/hello.  So we can't use
+  // "if (tvh->GetProtocol() >= 33)".
+  PVR_MENUHOOK hook;
+  memset(&hook, sizeof hook, 0);
+  hook.iHookId            = MENUHOOK_TIMER_PREV_RECORDED;
+  hook.category           = PVR_MENUHOOK_TIMER;
+  hook.iLocalizedStringId = 30512;
+  PVR->AddMenuHook(&hook);
+
   m_CurStatus = ADDON_STATUS_OK;
   return m_CurStatus;
 }
@@ -130,7 +144,6 @@ void ADDON_Destroy()
   SAFE_DELETE(tvh);
   SAFE_DELETE(PVR);
   SAFE_DELETE(XBMC);
-  SAFE_DELETE(menuHook);
   m_CurStatus = ADDON_STATUS_UNKNOWN;
 }
 
@@ -243,9 +256,14 @@ PVR_ERROR GetDriveSpace(long long *iTotal, long long *iUsed)
  * GUI hooks
  * *************************************************************************/
 
-PVR_ERROR CallMenuHook(const PVR_MENUHOOK&, const PVR_MENUHOOK_DATA&)
+PVR_ERROR CallMenuHook(const PVR_MENUHOOK &menuhook , const PVR_MENUHOOK_DATA &item)
 {
-  return PVR_ERROR_NO_ERROR;
+  const menu_hook_id_t id = static_cast<menu_hook_id_t>(menuhook.iHookId);
+  const PVR_TIMER &timer = item.data.timer;
+  if (id == MENUHOOK_TIMER_PREV_RECORDED)
+    return tvh->MarkPrevRecordedTimer(timer);
+  else
+    return PVR_ERROR_NO_ERROR;
 }
 
 /* **************************************************************************
